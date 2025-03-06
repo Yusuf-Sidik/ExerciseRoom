@@ -1,7 +1,12 @@
 package com.example.exerciseroom.ui.insert
 
 import android.os.Bundle
+import android.view.Menu
+import android.view.MenuItem
+import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -9,6 +14,7 @@ import androidx.lifecycle.ViewModelProvider
 import com.example.exerciseroom.R
 import com.example.exerciseroom.database.Note
 import com.example.exerciseroom.databinding.ActivityNoteAddUpdateBinding
+import com.example.exerciseroom.helper.DataHelper
 import com.example.exerciseroom.helper.ViewModelFactory
 
 class NoteAddUpdateActivity : AppCompatActivity() {
@@ -33,6 +39,122 @@ class NoteAddUpdateActivity : AppCompatActivity() {
         setContentView(binding?.root)
 
         noteAddUpdateViewModel = obtainViewModel(this@NoteAddUpdateActivity)
+
+        note = intent.getParcelableExtra(EXTRA_NOTE)
+        if (note != null){
+            isEdit = true
+        } else{
+            note = Note()
+        }
+        val actionBarTitle: String
+        val btnTitle: String
+        if (isEdit){
+            actionBarTitle = getString(R.string.change)
+            btnTitle = getString(R.string.update)
+            if (note != null){
+                note?.let { note ->
+                    binding?.edtTitle?.setText(note.title)
+                    binding?.edtDescription?.setText(note.description)
+                }
+            }
+        }else{
+            actionBarTitle = getString(R.string.add)
+            btnTitle = getString(R.string.save)
+        }
+        supportActionBar?.title = actionBarTitle
+        supportActionBar?.setDisplayHomeAsUpEnabled(true)
+        binding?.btnSubmit?.text = btnTitle
+        binding?.btnSubmit?.setOnClickListener {
+            val title = binding?.edtTitle?.text.toString().trim()
+            val description = binding?.edtDescription?.text.toString().trim()
+
+            when {
+                title.isEmpty() -> {
+                    binding?.edtTitle?.error = getString(R.string.empty)
+                }
+                description.isEmpty() -> {
+                    binding?.edtDescription?.error = getString(R.string.empty)
+                }
+                else -> {
+                    note.let { note ->
+                        note?.title = title
+                        note?.description = description
+                    }
+
+                    if (isEdit) {
+                        noteAddUpdateViewModel.update(note as Note)
+                        showToast(getString(R.string.changed))
+                    } else {
+                        note.let { note ->
+                            note?.date = DataHelper.getCurrentDate()
+                        }
+                        noteAddUpdateViewModel.insert(note as Note)
+                        showToast(getString(R.string.added))
+                    }
+
+                    finish()
+                }
+            }
+        }
+
+        onBackPressedDispatcher.addCallback(this, object :OnBackPressedCallback(true){
+            override fun handleOnBackPressed() {
+                showAlertDialog(ALERT_DIALOG_CLOSE)
+            }
+
+        })
+
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+        if (isEdit){
+            menuInflater.inflate(R.menu.menu_form,menu)
+        }
+        return super.onCreateOptionsMenu(menu)
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        when(item.itemId){
+            R.id.action_delete -> showAlertDialog(ALERT_DIALOG_DELETE)
+            android.R.id.home -> showAlertDialog(ALERT_DIALOG_CLOSE)
+        }
+        return super.onOptionsItemSelected(item)
+    }
+
+    private fun showAlertDialog(type: Int) {
+        val isDialogClose = type == ALERT_DIALOG_CLOSE
+        val dialogTitle: String
+        val dialogMessage: String
+
+        if (isDialogClose) {
+            dialogTitle = getString(R.string.cancel)
+            dialogMessage = getString(R.string.message_cancel)
+        } else {
+            dialogTitle = getString(R.string.delete)
+            dialogMessage = getString(R.string.message_delete)
+        }
+
+        val alertDialogBuilder = AlertDialog.Builder(this)
+        with(alertDialogBuilder) {
+            setTitle(dialogTitle)
+            setMessage(dialogMessage)
+            setCancelable(false)
+            setPositiveButton(getString(R.string.yes)) { _, _ ->
+                if (!isDialogClose) {
+                    noteAddUpdateViewModel.delete(note as Note)
+                    showToast(getString(R.string.deleted))
+                }
+                finish()
+            }
+            setNegativeButton(getString(R.string.no)) { dialog, _ -> dialog.cancel() }
+        }
+
+        val alertDialog = alertDialogBuilder.create()
+        alertDialog.show()
+    }
+
+    private fun showToast(message: String) {
+        Toast.makeText(this,message, Toast.LENGTH_SHORT).show()
     }
 
     override fun onDestroy() {
